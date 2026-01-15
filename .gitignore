@@ -1,0 +1,18 @@
+# --- 系统文件 (System Files) ---
+.DS_Store
+.DS_Store?
+Thumbs.db
+Desktop.ini
+
+# --- IDE 配置文件 (IDE Settings) ---
+.vscode/
+.idea/
+
+# --- 依赖与构建 (Dependencies & Builds) ---
+node_modules/
+dist/
+build/
+
+# --- 日志文件 (Logs) ---
+*.log
+npm-debug.log*
