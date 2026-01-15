@@ -200,13 +200,40 @@
 
             // 保存位置
             if (hasMoved) {
+                // 智能吸附：计算当前位置靠近哪个角落，转为相对定位 (Right/Bottom)
+                // 这样在浏览器缩放或窗口改变大小时，按钮能始终贴合角落，防止消失
+                const rect = el.getBoundingClientRect();
+                const winW = window.innerWidth;
+                const winH = window.innerHeight;
+
+                const pos = {};
+
+                // 水平判定：靠左 还是 靠右
+                if (rect.left + rect.width / 2 < winW / 2) {
+                    pos.left = rect.left + 'px';
+                    pos.right = 'auto';
+                } else {
+                    pos.left = 'auto';
+                    pos.right = (winW - rect.right) + 'px';
+                }
+
+                // 垂直判定：靠上 还是 靠下
+                if (rect.top + rect.height / 2 < winH / 2) {
+                    pos.top = rect.top + 'px';
+                    pos.bottom = 'auto';
+                } else {
+                    pos.top = 'auto';
+                    pos.bottom = (winH - rect.bottom) + 'px';
+                }
+
+                // 立即应用新的相对定位样式
+                el.style.left = pos.left;
+                el.style.right = pos.right;
+                el.style.top = pos.top;
+                el.style.bottom = pos.bottom;
+
                 const settings = getSettings();
-                settings.btnPos = {
-                    left: el.style.left,
-                    top: el.style.top,
-                    bottom: 'auto',
-                    right: 'auto'
-                };
+                settings.btnPos = pos;
                 saveSettings(settings);
             }
         }
