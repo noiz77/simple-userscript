@@ -156,7 +156,7 @@
     function makeDraggable(el) {
         let isDragging = false;
         let startX, startY, initialLeft, initialTop;
-        let hasMoved = false; // 用于区分点击和拖拽
+        let hasMoved = false;
 
         el.addEventListener('mousedown', (e) => {
             isDragging = true;
@@ -168,15 +168,15 @@
             initialLeft = rect.left;
             initialTop = rect.top;
 
-            // 切换为 absolute 定位以便移动 (如果是 fixed 也行，但要计算准确)
-            el.style.bottom = 'auto'; // 清除 bottom
-            el.style.right = 'auto'; // 清除 right
+            el.style.transition = ''; // 确保拖拽时没有动画延迟
+            el.style.bottom = 'auto';
+            el.style.right = 'auto';
             el.style.left = initialLeft + 'px';
             el.style.top = initialTop + 'px';
 
             document.addEventListener('mousemove', onMouseMove);
             document.addEventListener('mouseup', onMouseUp);
-            e.preventDefault(); // 防止选中文本
+            e.preventDefault();
         });
 
         function onMouseMove(e) {
@@ -184,13 +184,26 @@
             const dx = e.clientX - startX;
             const dy = e.clientY - startY;
 
-            // 只有移动超过一定像素才算拖拽，避免误触点击
             if (Math.abs(dx) > 3 || Math.abs(dy) > 3) {
                 hasMoved = true;
             }
 
-            el.style.left = (initialLeft + dx) + 'px';
-            el.style.top = (initialTop + dy) + 'px';
+            let nextLeft = initialLeft + dx;
+            let nextTop = initialTop + dy;
+
+            // 限制在屏幕范围内
+            const winW = window.innerWidth;
+            const winH = window.innerHeight;
+            const rectW = el.offsetWidth;
+            const rectH = el.offsetHeight;
+
+            if (nextLeft < 0) nextLeft = 0;
+            if (nextLeft > winW - rectW) nextLeft = winW - rectW;
+            if (nextTop < 0) nextTop = 0;
+            if (nextTop > winH - rectH) nextTop = winH - rectH;
+
+            el.style.left = nextLeft + 'px';
+            el.style.top = nextTop + 'px';
         }
 
         function onMouseUp() {
@@ -198,39 +211,42 @@
             document.removeEventListener('mousemove', onMouseMove);
             document.removeEventListener('mouseup', onMouseUp);
 
-            // 保存位置
             if (hasMoved) {
-                // 智能吸附：计算当前位置靠近哪个角落，转为相对定位 (Right/Bottom)
-                // 这样在浏览器缩放或窗口改变大小时，按钮能始终贴合角落，防止消失
                 const rect = el.getBoundingClientRect();
                 const winW = window.innerWidth;
                 const winH = window.innerHeight;
 
                 const pos = {};
 
-                // 水平判定：靠左 还是 靠右
+                // 根据中心点位置决定吸附到左侧还是右侧边缘 (距离 20px)
                 if (rect.left + rect.width / 2 < winW / 2) {
-                    pos.left = rect.left + 'px';
+                    pos.left = '20px';
                     pos.right = 'auto';
                 } else {
                     pos.left = 'auto';
-                    pos.right = (winW - rect.right) + 'px';
+                    pos.right = '20px';
                 }
 
-                // 垂直判定：靠上 还是 靠下
-                if (rect.top + rect.height / 2 < winH / 2) {
-                    pos.top = rect.top + 'px';
-                    pos.bottom = 'auto';
-                } else {
-                    pos.top = 'auto';
-                    pos.bottom = (winH - rect.bottom) + 'px';
-                }
+                // 垂直方向限制
+                let finalTop = rect.top;
+                if (finalTop < 20) finalTop = 20;
+                if (finalTop > winH - rect.height - 20) finalTop = winH - rect.height - 20;
 
-                // 立即应用新的相对定位样式
+                pos.top = finalTop + 'px';
+                pos.bottom = 'auto';
+
+                // 开启动画以便平滑吸附
+                el.style.transition = 'left 0.3s ease, right 0.3s ease, top 0.3s ease, bottom 0.3s ease';
+
                 el.style.left = pos.left;
                 el.style.right = pos.right;
                 el.style.top = pos.top;
                 el.style.bottom = pos.bottom;
+
+                // 动画结束后移除行内 transition 恢复 CSS 默认的 transition
+                setTimeout(() => {
+                    el.style.transition = '';
+                }, 300);
 
                 const settings = getSettings();
                 settings.btnPos = pos;
@@ -238,13 +254,12 @@
             }
         }
 
-        // 劫持点击事件：如果发生了拖拽，就阻止默认点击（打开弹窗）
         el.addEventListener('click', (e) => {
             if (hasMoved) {
                 e.stopImmediatePropagation();
                 e.preventDefault();
             }
-        }, true); // 捕获阶段执行
+        }, true);
     }
 
     function createUI() {
@@ -264,9 +279,11 @@
             if (settings.btnPos.bottom) floatBtn.style.bottom = settings.btnPos.bottom;
             if (settings.btnPos.right) floatBtn.style.right = settings.btnPos.right;
         } else {
-            // 默认右下角
-            floatBtn.style.bottom = '80px';
-            floatBtn.style.right = '30px';
+            // 默认靠右下角侧边吸附
+            floatBtn.style.top = (window.innerHeight - 100) + 'px';
+            floatBtn.style.right = '20px';
+            floatBtn.style.left = 'auto';
+            floatBtn.style.bottom = 'auto';
         }
 
         // 绑定点击事件 (配合拖拽逻辑)
@@ -277,6 +294,37 @@
         };
 
         document.body.appendChild(floatBtn);
+
+        // 初始化时检测越界，强制修复位置并吸附到边缘 (解决找不到了的问题)
+        setTimeout(() => {
+            const rect = floatBtn.getBoundingClientRect();
+            const winW = window.innerWidth;
+            const winH = window.innerHeight;
+
+            // 强制吸附：判断位置并贴边
+            if (rect.left + rect.width / 2 < winW / 2) {
+                floatBtn.style.left = '20px';
+                floatBtn.style.right = 'auto';
+            } else {
+                floatBtn.style.left = 'auto';
+                floatBtn.style.right = '20px';
+            }
+
+            // 垂直方向限制
+            let currentTop = rect.top;
+            if (currentTop < 20) currentTop = 20;
+            if (currentTop > winH - rect.height - 20) currentTop = winH - rect.height - 20;
+
+            floatBtn.style.top = currentTop + 'px';
+            floatBtn.style.bottom = 'auto';
+
+            // 覆盖保存可能是错误的数据
+            const pos = { top: floatBtn.style.top, left: floatBtn.style.left, right: floatBtn.style.right, bottom: 'auto' };
+            const savedSettings = getSettings();
+            savedSettings.btnPos = pos;
+            saveSettings(savedSettings);
+        }, 100);
+
         makeDraggable(floatBtn);
 
         // 设置面板 (Modal)
